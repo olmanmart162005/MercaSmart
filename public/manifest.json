@@ -1,0 +1,21 @@
+{
+  "name": "MercaSmart",
+  "short_name": "MercaSmart",
+  "description": "Sistema de administración para pulpería y supermercado",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#0ea5e9",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "type": "image/svg+xml",
+      "sizes": "any",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["business", "finance", "productivity"],
+  "lang": "es",
+  "dir": "ltr"
+}
