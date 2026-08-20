@@ -1,17 +1,14 @@
 import React, { useState } from 'react'
 import { Navigate } from 'react-router-dom'
-import { ShoppingCart, Eye, EyeOff, Loader2, UserPlus, LogIn, ShieldCheck } from 'lucide-react'
+import { Eye, EyeOff, Loader2, LogIn, Lock, User } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 import LoadingScreen from '@/components/ui/LoadingScreen'
-import toast from 'react-hot-toast'
 
 export default function LoginPage() {
-  const { signIn, registerSuperAdmin, user, profile, loading: authLoading } = useAuth()
-  const [isRegisterMode, setIsRegisterMode] = useState(false)
+  const { signIn, user, profile, loading: authLoading } = useAuth()
 
   // Form fields
   const [username, setUsername] = useState('')
-  const [fullName, setFullName] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -35,21 +32,9 @@ export default function LoginPage() {
     setLoading(true)
     setError('')
 
-    if (isRegisterMode) {
-      // Register initial Super Admin
-      const { error: regError } = await registerSuperAdmin(username, fullName, password)
-      if (regError) {
-        setError(regError)
-        toast.error(regError)
-      } else {
-        toast.success('¡Super Administrador creado con éxito!')
-      }
-    } else {
-      // Normal Sign In
-      const { error: authError } = await signIn(username, password)
-      if (authError) {
-        setError(authError)
-      }
+    const { error: authError } = await signIn(username, password)
+    if (authError) {
+      setError(authError)
     }
     setLoading(false)
   }
@@ -72,44 +57,17 @@ export default function LoginPage() {
             Merca<span className="text-sky-400">Smart</span>
           </h1>
           <p className="text-slate-400 text-xs mt-1 uppercase tracking-widest font-bold">
-            Sistema POS & Administración Web
+            Sistema POS & Multi-Sucursal
           </p>
         </div>
 
         {/* Card */}
         <div className="bg-slate-900/90 backdrop-blur-2xl border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-2xl animate-slide-up">
-          {/* Mode Switcher Tabs */}
-          <div className="flex items-center gap-1 bg-slate-950/60 p-1 rounded-2xl border border-slate-800 mb-6">
-            <button
-              type="button"
-              onClick={() => {
-                setIsRegisterMode(false)
-                setError('')
-              }}
-              className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
-                !isRegisterMode
-                  ? 'bg-sky-500 text-white shadow-md'
-                  : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              <LogIn className="w-4 h-4" />
-              <span>Iniciar Sesión</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setIsRegisterMode(true)
-                setError('')
-              }}
-              className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
-                isRegisterMode
-                  ? 'bg-emerald-500 text-white shadow-md'
-                  : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              <UserPlus className="w-4 h-4" />
-              <span>Primer Uso (Admin)</span>
-            </button>
+          <div className="mb-6 text-center">
+            <h2 className="text-lg font-bold text-white">Iniciar Sesión</h2>
+            <p className="text-xs text-slate-400 mt-0.5">
+              Ingresa tus credenciales para acceder al sistema
+            </p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -120,36 +78,23 @@ export default function LoginPage() {
               </div>
             )}
 
-            {isRegisterMode && (
-              <div>
-                <label className="block text-xs font-bold text-slate-300 mb-1.5 uppercase tracking-wider">
-                  Nombre Completo
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  placeholder="ej. Administrador General"
-                  className="w-full bg-slate-950/60 border border-slate-800 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 text-sm font-medium"
-                />
-              </div>
-            )}
-
             <div>
               <label className="block text-xs font-bold text-slate-300 mb-1.5 uppercase tracking-wider">
                 Usuario
               </label>
-              <input
-                type="text"
-                required
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                placeholder="ej. admin o cajero1"
-                autoComplete="username"
-                autoFocus
-                className="w-full bg-slate-950/60 border border-slate-800 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm font-medium"
-              />
+              <div className="relative">
+                <input
+                  type="text"
+                  required
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  placeholder="ej. superadmin, cajero1"
+                  autoComplete="username"
+                  autoFocus
+                  className="w-full bg-slate-950/60 border border-slate-800 rounded-xl px-4 py-3 pl-10 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm font-medium"
+                />
+                <User className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
+              </div>
             </div>
 
             <div>
@@ -162,14 +107,16 @@ export default function LoginPage() {
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Mínimo 6 caracteres"
+                  placeholder="Ingresa tu contraseña"
                   autoComplete="current-password"
-                  className="w-full bg-slate-950/60 border border-slate-800 rounded-xl px-4 py-3 pr-11 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm font-medium"
+                  className="w-full bg-slate-950/60 border border-slate-800 rounded-xl px-4 py-3 pl-10 pr-11 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm font-medium"
                 />
+                <Lock className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 p-1"
+                  tabIndex={-1}
                 >
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
@@ -179,21 +126,12 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className={`w-full py-3.5 rounded-2xl text-white font-extrabold text-sm flex items-center justify-center gap-2 shadow-lg transition-all active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed ${
-                isRegisterMode
-                  ? 'bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 shadow-emerald-500/25'
-                  : 'bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-600 hover:to-indigo-700 shadow-sky-500/25'
-              }`}
+              className="w-full py-3.5 rounded-2xl text-white font-extrabold text-sm flex items-center justify-center gap-2 bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-600 hover:to-indigo-700 shadow-lg shadow-sky-500/25 transition-all active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed mt-2"
             >
               {loading ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>Procesando...</span>
-                </>
-              ) : isRegisterMode ? (
-                <>
-                  <ShieldCheck className="w-4 h-4" />
-                  <span>Crear Cuenta de Administrador</span>
+                  <span>Iniciando sesión...</span>
                 </>
               ) : (
                 <>
@@ -203,38 +141,6 @@ export default function LoginPage() {
               )}
             </button>
           </form>
-
-          <div className="mt-6 pt-4 border-t border-slate-800/80 text-center">
-            {isRegisterMode ? (
-              <p className="text-xs text-slate-400">
-                ¿Ya tienes una cuenta registrada?{' '}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsRegisterMode(false)
-                    setError('')
-                  }}
-                  className="text-sky-400 font-bold hover:underline"
-                >
-                  Inicia sesión aquí
-                </button>
-              </p>
-            ) : (
-              <p className="text-xs text-slate-400">
-                ¿Es tu primera vez usando MercaSmart?{' '}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsRegisterMode(true)
-                    setError('')
-                  }}
-                  className="text-emerald-400 font-bold hover:underline"
-                >
-                  Registra tu Administrador aquí
-                </button>
-              </p>
-            )}
-          </div>
         </div>
       </div>
     </div>
