@@ -79,12 +79,18 @@ export default function SettingsPage() {
       }))
 
       for (const entry of entries) {
-        const { error } = await supabase
+        const { error: updateErr } = await supabase
           .from('configuration')
-          .upsert(entry, { onConflict: 'key, branch_id' })
-        if (error) {
-          // Fallback to simple upsert
-          await supabase.from('configuration').upsert({ key: entry.key, value: entry.value })
+          .update({
+            value: entry.value,
+            branch_id: entry.branch_id,
+            updated_at: entry.updated_at,
+          })
+          .eq('key', entry.key)
+
+        if (updateErr) {
+          // If key doesn't exist yet, insert it
+          await supabase.from('configuration').insert(entry)
         }
       }
 
