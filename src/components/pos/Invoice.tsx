@@ -1,5 +1,5 @@
 import React from 'react'
-import { Printer, Download, X } from 'lucide-react'
+import { Printer, Download, X, AlertTriangle } from 'lucide-react'
 
 interface InvoiceProps {
   sale: {
@@ -42,6 +42,7 @@ interface InvoiceProps {
     footer_text?: string
   }
   onClose: () => void
+  onCancel?: (saleId: string) => void
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -111,6 +112,7 @@ const Invoice: React.FC<InvoiceProps> = ({
   branch,
   sarConfig,
   onClose,
+  onCancel,
 }) => {
   const { date, time } = formatDateTime(sale.created_at)
   const invoiceFormatted = formatInvoiceNumber(sale.invoice_number)
@@ -221,37 +223,50 @@ const Invoice: React.FC<InvoiceProps> = ({
         <div className="w-full max-w-sm mx-auto flex flex-col gap-4">
           {/* ── Action Toolbar ────────────────────────────────────────────── */}
           <div className="flex items-center justify-between print:hidden">
-            <h2 className="text-white font-semibold text-lg">
+            <h2 className="text-white font-bold text-base sm:text-lg truncate">
               {sale.is_cancelled ? (
-                <span className="text-red-400">⚠ Factura Anulada</span>
+                <span className="text-red-400 flex items-center gap-1">
+                  <AlertTriangle className="w-4 h-4" /> Factura Anulada
+                </span>
               ) : (
-                'Vista Previa de Factura'
+                'Factura Fiscal SAR'
               )}
             </h2>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 flex-shrink-0">
+              {/* Optional Cancel button */}
+              {onCancel && !sale.is_cancelled && (
+                <button
+                  onClick={() => onCancel(sale.id)}
+                  title="Anular factura"
+                  className="flex items-center gap-1 rounded-xl bg-rose-500/20 hover:bg-rose-500 text-rose-300 hover:text-white px-2.5 py-1.5 text-xs font-bold transition-all border border-rose-500/30"
+                >
+                  <AlertTriangle size={14} />
+                  Anular
+                </button>
+              )}
               {/* Download button */}
               <button
                 onClick={handleDownload}
                 title="Descargar como texto"
-                className="flex items-center gap-1.5 rounded-md bg-white/10 hover:bg-white/20 text-white px-3 py-1.5 text-sm font-medium transition-colors"
+                className="flex items-center gap-1 rounded-xl bg-white/10 hover:bg-white/20 text-white px-2.5 py-1.5 text-xs font-bold transition-colors"
               >
-                <Download size={15} />
+                <Download size={14} />
                 Descargar
               </button>
               {/* Print button */}
               <button
                 onClick={handlePrint}
                 title="Imprimir factura"
-                className="flex items-center gap-1.5 rounded-md bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 text-sm font-medium transition-colors"
+                className="flex items-center gap-1 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white px-3 py-1.5 text-xs font-extrabold shadow-md transition-all"
               >
-                <Printer size={15} />
+                <Printer size={14} />
                 Imprimir
               </button>
               {/* Close button */}
               <button
                 onClick={onClose}
                 title="Cerrar"
-                className="flex items-center justify-center rounded-md bg-white/10 hover:bg-red-600 text-white w-8 h-8 transition-colors"
+                className="flex items-center justify-center rounded-xl bg-white/10 hover:bg-rose-600 text-white w-8 h-8 transition-colors"
               >
                 <X size={16} />
               </button>
@@ -261,42 +276,51 @@ const Invoice: React.FC<InvoiceProps> = ({
           {/* ── Invoice Card ────────────────────────────────────────────────── */}
           <div
             id="invoice-print-area"
-            className="bg-white w-full rounded-lg shadow-2xl p-5 text-gray-800 text-sm font-mono"
+            className="bg-white w-full rounded-2xl shadow-2xl p-5 text-gray-800 text-sm font-mono border border-slate-200 print:border-0 print:shadow-none"
           >
             {/* CANCELLED watermark */}
             {sale.is_cancelled && (
-              <div className="text-center text-red-600 font-bold text-xl border-2 border-red-600 rounded mb-3 py-1 tracking-widest">
+              <div className="text-center text-red-600 font-black text-xl border-2 border-red-600 rounded-lg mb-3 py-1 tracking-widest">
                 ANULADA
               </div>
             )}
 
-            {/* ── Header ───────────────────────────────────────────────────── */}
+            {/* ── Header with Centered Branch Logo ─────────────────────────── */}
             <div className="text-center mb-2">
-              {branch?.logo_url && (
+              <div className="flex justify-center mb-2">
                 <img
-                  src={branch.logo_url}
+                  src={
+                    branch?.logo_url
+                      ? branch.logo_url.startsWith('http') || branch.logo_url.startsWith('/')
+                        ? branch.logo_url
+                        : `https://dyfwcubkvgcqufpmtgvh.supabase.co/storage/v1/object/public/branch-logos/${branch.logo_url}`
+                      : '/logo.png'
+                  }
                   alt="Logo"
-                  className="h-14 mx-auto mb-2 object-contain"
+                  className="h-16 max-w-[150px] object-contain mx-auto print:max-h-14"
                   onError={(e) => {
-                    ;(e.target as HTMLImageElement).style.display = 'none'
+                    const target = e.currentTarget
+                    if (target.src !== window.location.origin + '/logo.png') {
+                      target.src = '/logo.png'
+                    }
                   }}
                 />
-              )}
-              <p className="font-bold text-base uppercase leading-tight">
+              </div>
+              <p className="font-black text-base uppercase leading-tight tracking-wide text-black">
                 {branch?.name ?? 'MercaSmart'}
               </p>
               {branch?.address && (
-                <p className="text-xs text-gray-600 leading-tight">
+                <p className="text-xs text-gray-700 leading-tight mt-0.5">
                   {branch.address}
                 </p>
               )}
               {branch?.phone && (
-                <p className="text-xs text-gray-600 leading-tight">
+                <p className="text-xs text-gray-700 leading-tight">
                   Tel: {branch.phone}
                 </p>
               )}
               {branch?.rtn && (
-                <p className="text-xs text-gray-600 font-semibold leading-tight">
+                <p className="text-xs text-gray-800 font-bold leading-tight">
                   RTN: {branch.rtn}
                 </p>
               )}

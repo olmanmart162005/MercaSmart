@@ -4,7 +4,7 @@ import { useAuth } from '@/context/AuthContext'
 import { useBranch } from '@/context/BranchContext'
 import { formatCurrency, formatDateTime } from '@/utils'
 import type { Sale, SaleItem } from '@/types'
-import Modal from '@/components/ui/Modal'
+import Invoice from '@/components/pos/Invoice'
 import ConfirmDialog from '@/components/ui/ConfirmDialog'
 import EmptyState from '@/components/ui/EmptyState'
 import { SkeletonTable } from '@/components/ui/SkeletonLoader'
@@ -34,10 +34,17 @@ export default function SalesPage() {
   const [methodFilter, setMethodFilter] = useState('all')
   const [cancelledFilter, setCancelledFilter] = useState('active')
 
-  // Detail Modal
+  // Detail Modal (Invoice)
   const [selectedSale, setSelectedSale] = useState<Sale | null>(null)
   const [saleItems, setSaleItems] = useState<SaleItem[]>([])
   const [loadingItems, setLoadingItems] = useState(false)
+  const [sarConfig, setSarConfig] = useState<{
+    cai?: string
+    rango_inicio?: string
+    rango_fin?: string
+    fecha_limite?: string
+    footer_text?: string
+  }>({})
 
   // Cancel Modal
   const [cancelSaleId, setCancelSaleId] = useState<number | null>(null)
@@ -45,7 +52,27 @@ export default function SalesPage() {
 
   useEffect(() => {
     loadSales()
+    loadSarConfig()
   }, [selectedBranchId])
+
+  const loadSarConfig = async () => {
+    try {
+      const { data } = await supabase.from('configuration').select('key, value')
+      if (data) {
+        const map: Record<string, string> = {}
+        data.forEach((r) => { map[r.key] = r.value })
+        setSarConfig({
+          cai: map.SAR_CAI || '',
+          rango_inicio: map.SAR_RangeMin || '',
+          rango_fin: map.SAR_RangeMax || '',
+          fecha_limite: map.SAR_DeadlineDate || '',
+          footer_text: map.TicketFooter || '',
+        })
+      }
+    } catch {
+      // ignore
+    }
+  }
 
   const loadSales = async () => {
     setLoading(true)
@@ -278,145 +305,49 @@ export default function SalesPage() {
         </div>
       )}
 
-      {/* Sale Detail Modal */}
-      {selectedSale && (
-        <Modal
-          isOpen={true}
-          onClose={() => setSelectedSale(null)}
-          title={`Detalle de Venta · Factura ${selectedSale.invoice_number}`}
-          size="lg"
-          footer={
-            <div className="flex gap-2 w-full justify-between items-center">
-              <div>
-                {!selectedSale.is_cancelled && isAdmin && (
-                  <button
-                    onClick={() => setCancelSaleId(selectedSale.id)}
-                    className="btn-danger text-xs"
-                  >
-                    <XCircle className="w-4 h-4" />
-                    <span>Anular Factura & Devolver Stock</span>
-                  </button>
-                )}
-              </div>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => window.print()}
-                  className="btn-secondary text-xs flex items-center gap-1.5"
-                >
-                  <Printer className="w-4 h-4" /> Imprimir Ticket
-                </button>
-                <button
-                  onClick={() => setSelectedSale(null)}
-                  className="btn-primary text-xs"
-                >
-                  Cerrar
-                </button>
-              </div>
-            </div>
+      {/* Professional Fiscal Invoice Modal */}
+      {selectedSale && !loadingItems && (
+        <Invoice
+          sale={{
+            id: String(selectedSale.id),
+            invoice_number: selectedSale.invoice_number,
+            created_at: selectedSale.created_at,
+            payment_method: selectedSale.payment_method,
+            cash_received: selectedSale.cash_received,
+            change_given: selectedSale.change_given,
+            subtotal: selectedSale.subtotal,
+            tax_amount: selectedSale.tax_amount,
+            discount_amount: selectedSale.discount_amount,
+            total: selectedSale.total,
+            customer_name: selectedSale.customer_name || (selectedSale as any).customer?.name || 'Consumidor Final',
+            customer_rtn: selectedSale.customer_rtn || (selectedSale as any).customer?.rtn || '',
+            is_cancelled: selectedSale.is_cancelled,
+          }}
+          items={saleItems.map((item) => ({
+            product_name: item.product?.name || `Producto #${item.product_id}`,
+            product: {
+              name: item.product?.name || `Producto #${item.product_id}`,
+              code: item.product?.code,
+            },
+            quantity: Number(item.quantity),
+            price: Number(item.price),
+            tax_rate: Number(item.tax_rate),
+            subtotal: Number(item.subtotal),
+            discount: Number(item.discount || 0),
+          }))}
+          branch={
+            selectedBranch || {
+              name: 'MercaSmart',
+              address: '',
+              phone: '',
+              rtn: '',
+              logo_url: '/logo.png',
+            }
           }
-        >
-          <div className="space-y-4">
-            {/* Header info */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700 text-xs">
-              <div>
-                <span className="text-slate-400 block">Fecha y Hora</span>
-                <span className="font-semibold text-slate-800 dark:text-slate-200">
-                  {formatDateTime(selectedSale.created_at)}
-                </span>
-              </div>
-              <div>
-                <span className="text-slate-400 block">Cliente</span>
-                <span className="font-semibold text-slate-800 dark:text-slate-200">
-                  {selectedSale.customer_name || 'Consumidor Final'}
-                </span>
-              </div>
-              <div>
-                <span className="text-slate-400 block">Método de Pago</span>
-                <span className="font-semibold text-slate-800 dark:text-slate-200">
-                  {selectedSale.payment_method}
-                </span>
-              </div>
-              <div>
-                <span className="text-slate-400 block">Estado</span>
-                <span
-                  className={
-                    selectedSale.is_cancelled
-                      ? 'text-rose-500 font-bold'
-                      : 'text-emerald-500 font-bold'
-                  }
-                >
-                  {selectedSale.is_cancelled ? 'Factura Anulada' : 'Factura Válida'}
-                </span>
-              </div>
-            </div>
-
-            {/* Items Table */}
-            {loadingItems ? (
-              <div className="py-8 text-center text-slate-400">
-                <Loader2 className="w-5 h-5 animate-spin mx-auto mb-2 text-sky-500" />
-                Cargando productos...
-              </div>
-            ) : (
-              <div className="table-container">
-                <table className="table-base">
-                  <thead>
-                    <tr>
-                      <th>Producto</th>
-                      <th className="text-center">Cant</th>
-                      <th className="text-right">Precio</th>
-                      <th className="text-center">ISV</th>
-                      <th className="text-right">Subtotal</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {saleItems.map((item) => (
-                      <tr key={item.id}>
-                        <td>
-                          <p className="font-bold text-xs text-slate-900 dark:text-white">
-                            {item.product?.name || `Producto #${item.product_id}`}
-                          </p>
-                          <span className="font-mono text-[10px] text-slate-400">
-                            {item.product?.code}
-                          </span>
-                        </td>
-                        <td className="text-center font-bold text-xs">{item.quantity}</td>
-                        <td className="text-right text-xs">{formatCurrency(item.price)}</td>
-                        <td className="text-center text-xs">{item.tax_rate}%</td>
-                        <td className="text-right font-black text-xs">
-                          {formatCurrency(item.subtotal)}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-
-            {/* Totals Summary */}
-            <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700 space-y-1.5 text-xs">
-              <div className="flex justify-between text-slate-500">
-                <span>Subtotal General:</span>
-                <span>{formatCurrency(selectedSale.subtotal)}</span>
-              </div>
-              <div className="flex justify-between text-slate-500">
-                <span>Impuesto ISV Incluido:</span>
-                <span>{formatCurrency(selectedSale.tax_amount)}</span>
-              </div>
-              {selectedSale.discount_amount > 0 && (
-                <div className="flex justify-between text-slate-500">
-                  <span>Descuento Aplicado:</span>
-                  <span>-{formatCurrency(selectedSale.discount_amount)}</span>
-                </div>
-              )}
-              <div className="flex justify-between pt-1.5 border-t border-slate-200 dark:border-slate-700 text-sm font-black text-slate-900 dark:text-white">
-                <span>TOTAL FACTURADO:</span>
-                <span className="text-emerald-500 text-base">
-                  {formatCurrency(selectedSale.total)}
-                </span>
-              </div>
-            </div>
-          </div>
-        </Modal>
+          sarConfig={sarConfig}
+          onClose={() => setSelectedSale(null)}
+          onCancel={isAdmin ? (id) => setCancelSaleId(Number(id)) : undefined}
+        />
       )}
 
       {/* Cancel Confirm Dialog */}
