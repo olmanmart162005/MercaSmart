@@ -192,6 +192,8 @@ export interface InventoryTransaction {
   // Relations
   product?: Product
   profile?: Profile
+  user?: Profile
+  branch?: Branch
 }
 
 export interface Configuration {

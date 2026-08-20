@@ -65,8 +65,8 @@ export default function LoginPage() {
       <div className="relative w-full max-w-md">
         {/* Brand Header */}
         <div className="text-center mb-6 animate-fade-in">
-          <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-tr from-sky-500 to-indigo-600 rounded-3xl shadow-xl shadow-sky-500/25 mb-3">
-            <ShoppingCart className="w-10 h-10 text-white" />
+          <div className="inline-flex items-center justify-center w-20 h-20 bg-slate-900/80 border border-slate-800 rounded-3xl shadow-xl shadow-sky-500/10 mb-3 p-3">
+            <img src="/logo.png" alt="MercaSmart" className="w-full h-full object-contain" />
           </div>
           <h1 className="text-3xl font-black tracking-tight text-white">
             Merca<span className="text-sky-400">Smart</span>

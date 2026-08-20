@@ -59,9 +59,15 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
       {/* Brand Header */}
       <div className="h-16 flex items-center justify-between px-5 border-b border-slate-800 bg-slate-950/40">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-sky-500 to-indigo-500 flex items-center justify-center text-white shadow-lg shadow-sky-500/25">
-            <ShoppingCart className="w-5 h-5" />
-          </div>
+          <img
+            src="/logo.png"
+            alt="MercaSmart"
+            className="w-10 h-10 object-contain rounded-xl shadow-md"
+            onError={(e) => {
+              // Fallback if image fails to load
+              e.currentTarget.style.display = 'none'
+            }}
+          />
           <div>
             <span className="font-extrabold text-lg tracking-tight text-white block leading-tight">
               Merca<span className="text-sky-400">Smart</span>
