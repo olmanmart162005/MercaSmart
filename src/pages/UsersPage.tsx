@@ -115,6 +115,7 @@ export default function UsersPage() {
     setSaving(true)
     try {
       if (editingUser) {
+        // Editar usuario existente: solo actualiza el perfil
         const { error: profileErr } = await supabase
           .from('profiles')
           .update({
@@ -129,39 +130,40 @@ export default function UsersPage() {
         if (profileErr) throw profileErr
         toast.success('Usuario actualizado exitosamente')
       } else {
-        const email = `${cleanUser}@mercasmart.com`
+        // Crear nuevo usuario via Edge Function (no cambia la sesión del admin)
         const targetBranch = role === 'super_admin' ? null : branchId || activeBranchId
 
-        const { data: authData, error: authErr } = await supabase.auth.signUp({
-          email,
-          password,
-          options: {
-            data: {
-              username: cleanUser,
-              full_name: fullName.trim(),
-              role,
-              branch_id: targetBranch,
+        const { data: sessionData } = await supabase.auth.getSession()
+        const accessToken = sessionData?.session?.access_token
+
+        if (!accessToken) throw new Error('No hay sesión activa')
+
+        const response = await fetch(
+          'https://dyfwcubkvgcqufpmtgvh.supabase.co/functions/v1/create-user',
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${accessToken}`,
             },
-          },
-        })
-
-        if (authErr) throw authErr
-
-        if (authData.user) {
-          await supabase.from('profiles').upsert(
-            {
-              id: authData.user.id,
+            body: JSON.stringify({
               username: cleanUser,
               full_name: fullName.trim(),
+              password,
               role,
               branch_id: targetBranch,
               is_active: isActive,
-            },
-            { onConflict: 'id' }
-          )
+            }),
+          }
+        )
+
+        const result = await response.json()
+
+        if (!response.ok) {
+          throw new Error(result.error || 'Error al crear usuario')
         }
 
-        toast.success('Usuario creado exitosamente')
+        toast.success(`Usuario "${cleanUser}" creado exitosamente`)
       }
 
       setIsModalOpen(false)
@@ -172,6 +174,7 @@ export default function UsersPage() {
       setSaving(false)
     }
   }
+
 
   const handleDelete = async () => {
     if (!deleteTarget) return

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/context/AuthContext'
 import { useBranch } from '@/context/BranchContext'
@@ -18,9 +18,13 @@ import {
   CheckCircle2,
   XCircle,
   Loader2,
-  ShieldAlert
+  ShieldAlert,
+  Upload,
+  ImageIcon
 } from 'lucide-react'
 import toast from 'react-hot-toast'
+
+const SUPABASE_URL = 'https://dyfwcubkvgcqufpmtgvh.supabase.co'
 
 export default function BranchesPage() {
   const { isSuperAdmin } = useAuth()
@@ -36,8 +40,14 @@ export default function BranchesPage() {
   const [name, setName] = useState('')
   const [address, setAddress] = useState('')
   const [phone, setPhone] = useState('')
+  const [rtn, setRtn] = useState('')
+  const [logoUrl, setLogoUrl] = useState('')
+  const [logoFile, setLogoFile] = useState<File | null>(null)
+  const [logoPreview, setLogoPreview] = useState<string>('')
+  const [uploadingLogo, setUploadingLogo] = useState(false)
   const [isActive, setIsActive] = useState(true)
   const [saving, setSaving] = useState(false)
+  const logoInputRef = useRef<HTMLInputElement>(null)
 
   // Toggle/Delete State
   const [deleteTarget, setDeleteTarget] = useState<Branch | null>(null)
@@ -71,6 +81,10 @@ export default function BranchesPage() {
     setName('')
     setAddress('')
     setPhone('')
+    setRtn('')
+    setLogoUrl('')
+    setLogoFile(null)
+    setLogoPreview('')
     setIsActive(true)
     setIsModalOpen(true)
   }
@@ -81,8 +95,27 @@ export default function BranchesPage() {
     setName(b.name)
     setAddress(b.address || '')
     setPhone(b.phone || '')
+    setRtn((b as any).rtn || '')
+    setLogoUrl((b as any).logo_url || '')
+    setLogoFile(null)
+    setLogoPreview((b as any).logo_url || '')
     setIsActive(b.is_active)
     setIsModalOpen(true)
+  }
+
+  const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (!file.type.startsWith('image/')) {
+      toast.error('Por favor selecciona una imagen válida')
+      return
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error('La imagen no puede superar 2MB')
+      return
+    }
+    setLogoFile(file)
+    setLogoPreview(URL.createObjectURL(file))
   }
 
   const handleSave = async (e: React.FormEvent) => {
@@ -94,11 +127,32 @@ export default function BranchesPage() {
 
     setSaving(true)
     try {
+      let finalLogoUrl = logoUrl
+
+      // Upload logo if a new file was selected
+      if (logoFile) {
+        setUploadingLogo(true)
+        const ext = logoFile.name.split('.').pop()
+        const path = `${code.trim().toLowerCase()}/logo.${ext}`
+        const { error: upErr } = await supabase.storage
+          .from('branch-logos')
+          .upload(path, logoFile, { upsert: true, contentType: logoFile.type })
+
+        if (upErr) {
+          toast.error('Error al subir el logo: ' + upErr.message)
+        } else {
+          finalLogoUrl = `${SUPABASE_URL}/storage/v1/object/public/branch-logos/${path}`
+        }
+        setUploadingLogo(false)
+      }
+
       const payload = {
         code: code.trim().toUpperCase(),
         name: name.trim(),
         address: address.trim(),
         phone: phone.trim(),
+        rtn: rtn.trim(),
+        logo_url: finalLogoUrl || null,
         is_active: isActive,
         updated_at: new Date().toISOString(),
       }
@@ -125,6 +179,7 @@ export default function BranchesPage() {
       setSaving(false)
     }
   }
+
 
   const handleDelete = async () => {
     if (!deleteTarget) return
@@ -396,15 +451,60 @@ export default function BranchesPage() {
             />
           </div>
 
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="label">Teléfono de Contacto</label>
+              <input
+                type="text"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="+504 2200-0000"
+                className="input-base font-mono text-sm"
+              />
+            </div>
+            <div>
+              <label className="label">RTN (Registro Tributario)</label>
+              <input
+                type="text"
+                value={rtn}
+                onChange={(e) => setRtn(e.target.value)}
+                placeholder="0101-1990-00001"
+                className="input-base font-mono text-sm"
+              />
+            </div>
+          </div>
+
+          {/* Logo Upload */}
           <div>
-            <label className="label">Teléfono de Contacto</label>
-            <input
-              type="text"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              placeholder="+504 2200-0000"
-              className="input-base font-mono text-sm"
-            />
+            <label className="label">Logo de la Sucursal</label>
+            <div className="flex items-center gap-4">
+              {/* Preview */}
+              <div className="w-16 h-16 rounded-xl border-2 border-dashed border-slate-300 dark:border-slate-700 flex items-center justify-center bg-slate-50 dark:bg-slate-800 overflow-hidden flex-shrink-0">
+                {logoPreview ? (
+                  <img src={logoPreview} alt="Logo" className="w-full h-full object-contain p-1" />
+                ) : (
+                  <ImageIcon className="w-6 h-6 text-slate-400" />
+                )}
+              </div>
+              <div className="flex-1">
+                <input
+                  ref={logoInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleLogoChange}
+                  className="hidden"
+                />
+                <button
+                  type="button"
+                  onClick={() => logoInputRef.current?.click()}
+                  className="btn-secondary text-xs py-1.5 w-full"
+                >
+                  <Upload className="w-3.5 h-3.5" />
+                  {logoPreview ? 'Cambiar Logo' : 'Subir Logo'}
+                </button>
+                <p className="text-[10px] text-slate-400 mt-1">JPG, PNG o SVG · Máx 2MB</p>
+              </div>
+            </div>
           </div>
 
           <div className="flex items-center gap-2 pt-2">
@@ -424,8 +524,8 @@ export default function BranchesPage() {
             <button type="button" onClick={() => setIsModalOpen(false)} className="btn-secondary">
               Cancelar
             </button>
-            <button type="submit" disabled={saving} className="btn-primary">
-              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+            <button type="submit" disabled={saving || uploadingLogo} className="btn-primary">
+              {saving || uploadingLogo ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
               <span>{editingBranch ? 'Guardar Cambios' : 'Crear Sucursal'}</span>
             </button>
           </div>

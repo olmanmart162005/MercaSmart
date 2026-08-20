@@ -10,7 +10,7 @@ import { Tags, Plus, Search, Edit2, Trash2, Loader2, CheckCircle2, XCircle, Pack
 import toast from 'react-hot-toast'
 
 export default function CategoriesPage() {
-  const { activeBranchId } = useBranch()
+  const { activeBranchId, selectedBranchId } = useBranch()
   const [categories, setCategories] = useState<(Category & { product_count?: number })[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -24,15 +24,21 @@ export default function CategoriesPage() {
 
   useEffect(() => {
     loadCategories()
-  }, [])
+  }, [selectedBranchId])
 
   const loadCategories = async () => {
     setLoading(true)
     try {
-      const [catRes, prodRes] = await Promise.all([
-        supabase.from('categories').select('*').order('name'),
-        supabase.from('products').select('category_id, id').eq('is_active', true),
-      ])
+      let catQuery = supabase.from('categories').select('*').order('name')
+      let prodQuery = supabase.from('products').select('category_id, id').eq('is_active', true)
+
+      // Filtrar por sucursal activa
+      if (selectedBranchId) {
+        catQuery = catQuery.or(`branch_id.eq.${selectedBranchId},branch_id.is.null`)
+        prodQuery = prodQuery.eq('branch_id', selectedBranchId)
+      }
+
+      const [catRes, prodRes] = await Promise.all([catQuery, prodQuery])
 
       if (catRes.error) throw catRes.error
 
@@ -55,6 +61,7 @@ export default function CategoriesPage() {
       setLoading(false)
     }
   }
+
 
   const openCreate = () => {
     setEditingCategory(null)

@@ -12,6 +12,7 @@ import {
 } from '@/utils'
 import type { Product, Customer, CashSession, PaymentMethod } from '@/types'
 import Modal from '@/components/ui/Modal'
+import Invoice from '@/components/pos/Invoice'
 import {
   ShoppingCart,
   Search,
@@ -68,16 +69,45 @@ export default function POSPage() {
   const [cashReceived, setCashReceived] = useState<string>('')
   const [completing, setCompleting] = useState(false)
 
-  // Success Ticket Modal
+  // SAR Config
+  const [sarConfig, setSarConfig] = useState<{
+    cai?: string
+    rango_inicio?: string
+    rango_fin?: string
+    fecha_limite?: string
+    footer_text?: string
+  }>({
+    cai: '7A2E89-F4D21C-8941AB-DE9C83-20F12E-5C',
+    rango_inicio: '000-001-01-00000001',
+    rango_fin: '000-001-01-00100000',
+    fecha_limite: '2027-12-31',
+    footer_text: 'Exija su Factura Fiscal. ¡Gracias por su preferencia!',
+  })
+
+  // Success Invoice Modal
   const [successSale, setSuccessSale] = useState<{
+    id: string
     invoice_number: string
-    total: number
-    payment_method: string
-    cash_received: number
-    change_given: number
-    items: POSCartItem[]
-    customer_name: string
     created_at: string
+    payment_method: string
+    cash_received?: number
+    change_given?: number
+    subtotal: number
+    tax_amount: number
+    discount_amount: number
+    total: number
+    customer_name?: string
+    customer_rtn?: string
+    is_cancelled?: boolean
+    items: Array<{
+      product_name?: string
+      product?: { name: string; code?: string }
+      quantity: number
+      price: number
+      tax_rate: number
+      subtotal: number
+      discount?: number
+    }>
   } | null>(null)
 
   // Mobile Active Tab: 'products' | 'cart'
@@ -108,15 +138,22 @@ export default function POSPage() {
         }
       }
 
-      // 2. Load Products, Categories, Customers
-      const [pRes, cRes, custRes] = await Promise.all([
-        supabase
-          .from('products')
-          .select('*, category:categories(name)')
-          .eq('is_active', true)
-          .order('name'),
+      // 2. Load Products, Categories, Customers, and SAR Configuration
+      let prodQuery = supabase
+        .from('products')
+        .select('*, category:categories(name)')
+        .eq('is_active', true)
+        .order('name')
+
+      if (activeBranchId) {
+        prodQuery = prodQuery.eq('branch_id', activeBranchId)
+      }
+
+      const [pRes, cRes, custRes, configRes] = await Promise.all([
+        prodQuery,
         supabase.from('categories').select('id, name').eq('is_active', true).order('name'),
         supabase.from('customers').select('*').eq('is_active', true).order('id'),
+        supabase.from('configuration').select('key, value').or(`branch_id.eq.${activeBranchId},branch_id.is.null`),
       ])
 
       if (pRes.data) setProducts(pRes.data as Product[])
@@ -126,6 +163,20 @@ export default function POSPage() {
         // Default customer: Consumidor Final (id=1 or first)
         const defaultCust = custRes.data.find((c) => c.id === 1) || custRes.data[0]
         setSelectedCustomer(defaultCust || null)
+      }
+
+      if (configRes.data && configRes.data.length > 0) {
+        const configMap: Record<string, string> = {}
+        configRes.data.forEach((r: { key: string; value: string }) => {
+          configMap[r.key] = r.value
+        })
+        setSarConfig({
+          cai: configMap['SAR_CAI'] || '7A2E89-F4D21C-8941AB-DE9C83-20F12E-5C',
+          rango_inicio: configMap['SAR_RangeMin'] || '000-001-01-00000001',
+          rango_fin: configMap['SAR_RangeMax'] || '000-001-01-00100000',
+          fecha_limite: configMap['SAR_DeadlineDate'] || '2027-12-31',
+          footer_text: configMap['TicketFooter'] || 'Exija su Factura Fiscal. ¡Gracias por su preferencia!',
+        })
       }
     } catch (err) {
       toast.error('Error al inicializar Punto de Venta')
@@ -319,16 +370,29 @@ export default function POSPage() {
 
       if (rpcError) throw rpcError
 
-      // Set Ticket Success Modal
+      // Set Fiscal Invoice Success Modal
       setSuccessSale({
+        id: invoiceNumber,
         invoice_number: invoiceNumber,
-        total: totals.total,
+        created_at: new Date().toISOString(),
         payment_method: paymentMethod,
         cash_received: paymentMethod === 'Efectivo' ? cashRec : totals.total,
         change_given: changeGiven,
-        items: [...cart],
+        subtotal: totals.subtotal,
+        tax_amount: totals.totalTax,
+        discount_amount: totals.totalDiscount,
+        total: totals.total,
         customer_name: selectedCustomer?.name || 'Consumidor Final',
-        created_at: new Date().toISOString(),
+        customer_rtn: selectedCustomer?.rtn || 'CF',
+        items: cart.map((i) => ({
+          product_name: i.product.name,
+          product: { name: i.product.name, code: i.product.code },
+          quantity: i.quantity,
+          price: i.product.sale_price,
+          tax_rate: i.product.tax_rate,
+          subtotal: i.product.sale_price * i.quantity,
+          discount: i.discount,
+        })),
       })
 
       clearCart()
@@ -762,90 +826,15 @@ export default function POSPage() {
         </form>
       </Modal>
 
-      {/* Sale Success Ticket Modal */}
+      {/* Professional Fiscal Invoice Modal */}
       {successSale && (
-        <Modal
-          isOpen={true}
+        <Invoice
+          sale={successSale}
+          items={successSale.items}
+          branch={selectedBranch}
+          sarConfig={sarConfig}
           onClose={() => setSuccessSale(null)}
-          title="Factura Emitida con Éxito"
-          size="sm"
-          footer={
-            <div className="flex gap-2 w-full justify-between">
-              <button
-                onClick={() => window.print()}
-                className="btn-secondary text-xs flex items-center gap-1.5"
-              >
-                <Printer className="w-4 h-4" /> Imprimir Ticket
-              </button>
-              <button
-                onClick={() => setSuccessSale(null)}
-                className="btn-primary text-xs"
-              >
-                Nueva Venta
-              </button>
-            </div>
-          }
-        >
-          <div className="bg-slate-50 dark:bg-slate-800/80 p-4 rounded-2xl border border-dashed border-slate-300 dark:border-slate-700 font-mono text-xs space-y-3">
-            <div className="text-center pb-2 border-b border-dashed border-slate-300 dark:border-slate-700">
-              <p className="font-extrabold text-sm text-slate-900 dark:text-white">
-                ★ MERCASMART ★
-              </p>
-              <p className="text-[10px] text-slate-500">SUPERMERCADO & PULPERÍA</p>
-              <p className="text-[10px] font-bold text-sky-500 mt-1">
-                FACTURA: {successSale.invoice_number}
-              </p>
-              <p className="text-[10px] text-slate-400">
-                {formatDateTime(successSale.created_at)}
-              </p>
-            </div>
-
-            <div className="space-y-1.5">
-              <p className="text-[11px]">
-                <strong className="text-slate-700 dark:text-slate-300">Cliente:</strong>{' '}
-                {successSale.customer_name}
-              </p>
-              <p className="text-[11px]">
-                <strong className="text-slate-700 dark:text-slate-300">Pago:</strong>{' '}
-                {successSale.payment_method}
-              </p>
-            </div>
-
-            <div className="border-t border-dashed border-slate-300 dark:border-slate-700 py-2 space-y-1">
-              {successSale.items.map((i, idx) => (
-                <div key={idx} className="flex justify-between text-[11px]">
-                  <span>
-                    {i.quantity}x {i.product.name}
-                  </span>
-                  <span className="font-bold">
-                    {formatCurrency(i.product.sale_price * i.quantity)}
-                  </span>
-                </div>
-              ))}
-            </div>
-
-            <div className="border-t border-dashed border-slate-300 dark:border-slate-700 pt-2 space-y-1 text-right">
-              <p className="font-bold text-sm text-slate-900 dark:text-white">
-                TOTAL: {formatCurrency(successSale.total)}
-              </p>
-              {successSale.payment_method === 'Efectivo' && (
-                <>
-                  <p className="text-[10px] text-slate-500">
-                    Recibido: {formatCurrency(successSale.cash_received)}
-                  </p>
-                  <p className="text-[10px] text-emerald-500 font-bold">
-                    Cambio: {formatCurrency(successSale.change_given)}
-                  </p>
-                </>
-              )}
-            </div>
-
-            <div className="text-center pt-3 border-t border-dashed border-slate-300 dark:border-slate-700 text-[10px] text-slate-400">
-              <p>Exija su Factura Fiscal</p>
-              <p>¡Gracias por su preferencia!</p>
-            </div>
-          </div>
-        </Modal>
+        />
       )}
     </div>
   )

@@ -3,10 +3,23 @@ import { supabase } from '@/lib/supabase'
 import { useAuth } from './AuthContext'
 import type { Branch } from '@/types'
 
+interface BranchConfig {
+  id: string
+  name: string
+  code: string
+  address?: string
+  phone?: string
+  rtn?: string
+  email?: string
+  website?: string
+  logo_url?: string
+  is_active: boolean
+}
+
 interface BranchContextType {
   branches: Branch[]
   selectedBranchId: string | null // null = Global view (only for super_admin)
-  selectedBranch: Branch | null
+  selectedBranch: BranchConfig | null
   activeBranchId: string // Guaranteed branch ID to use for write operations
   isGlobalView: boolean
   loadingBranches: boolean
@@ -59,7 +72,7 @@ export function BranchProvider({ children }: { children: React.ReactNode }) {
       }
     } else {
       // Admin and Cashier are strictly bound to their assigned branch
-      setSelectedBranchIdState(profile.branch_id || 'a0000000-0000-0000-0000-000000000001')
+      setSelectedBranchIdState(profile.branch_id || null)
     }
   }, [profile, isSuperAdmin])
 
@@ -78,17 +91,24 @@ export function BranchProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  const selectedBranch =
-    branches.find((b) => b.id === selectedBranchId) || null
+  // Compute selected branch full object
+  const selectedBranch = selectedBranchId
+    ? (branches.find((b) => b.id === selectedBranchId) as BranchConfig | undefined) ?? null
+    : null
 
-  const isGlobalView = isSuperAdmin && selectedBranchId === null
-
-  // Fallback branch ID for inserts/writes
+  // activeBranchId: the ID to use for all write operations
+  // For super_admin with global view, use the first branch as fallback
   const activeBranchId =
     selectedBranchId ||
     profile?.branch_id ||
     branches[0]?.id ||
-    'a0000000-0000-0000-0000-000000000001'
+    ''
+
+  const isGlobalView = isSuperAdmin && selectedBranchId === null
+
+  const reloadBranches = async () => {
+    await loadBranches()
+  }
 
   return (
     <BranchContext.Provider
@@ -100,7 +120,7 @@ export function BranchProvider({ children }: { children: React.ReactNode }) {
         isGlobalView,
         loadingBranches,
         setSelectedBranchId,
-        reloadBranches: loadBranches,
+        reloadBranches,
       }}
     >
       {children}
@@ -109,7 +129,7 @@ export function BranchProvider({ children }: { children: React.ReactNode }) {
 }
 
 export function useBranch() {
-  const context = useContext(BranchContext)
-  if (!context) throw new Error('useBranch must be used within BranchProvider')
-  return context
+  const ctx = useContext(BranchContext)
+  if (!ctx) throw new Error('useBranch must be used inside BranchProvider')
+  return ctx
 }

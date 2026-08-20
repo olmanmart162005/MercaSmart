@@ -1,6 +1,7 @@
 import React from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '@/context/AuthContext'
+import { useBranch } from '@/context/BranchContext'
 import { getInitials } from '@/utils'
 import {
   LayoutDashboard,
@@ -19,7 +20,8 @@ import {
   Building2,
   X,
   LogOut,
-  ShieldAlert
+  ShieldAlert,
+  User
 } from 'lucide-react'
 
 interface SidebarProps {
@@ -29,6 +31,7 @@ interface SidebarProps {
 
 export default function Sidebar({ isOpen, onClose }: SidebarProps) {
   const { profile, role, isSuperAdmin, isAdmin, isCajero, signOut } = useAuth()
+  const { selectedBranch } = useBranch()
   const navigate = useNavigate()
 
   const handleLogout = async () => {
@@ -60,20 +63,27 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
       <div className="h-16 flex items-center justify-between px-5 border-b border-slate-800 bg-slate-950/40">
         <div className="flex items-center gap-3">
           <img
-            src="/logo.png"
+            src={selectedBranch?.logo_url || '/logo.png'}
             alt="MercaSmart"
-            className="w-10 h-10 object-contain rounded-xl shadow-md"
+            className="w-10 h-10 object-contain rounded-xl shadow-md bg-slate-800/40 p-0.5"
             onError={(e) => {
-              // Fallback if image fails to load
-              e.currentTarget.style.display = 'none'
+              // Fallback to default logo if branch logo fails
+              const target = e.currentTarget
+              if (target.src !== window.location.origin + '/logo.png') {
+                target.src = '/logo.png'
+              }
             }}
           />
           <div>
             <span className="font-extrabold text-lg tracking-tight text-white block leading-tight">
-              Merca<span className="text-sky-400">Smart</span>
+              {selectedBranch?.name ? (
+                <span className="truncate max-w-[140px] block">{selectedBranch.name}</span>
+              ) : (
+                <>Merca<span className="text-sky-400">Smart</span></>
+              )}
             </span>
             <span className="text-[10px] uppercase font-bold tracking-widest text-slate-400 block">
-              POS & Multi-Sucursal
+              {selectedBranch?.code ? `Sucursal ${selectedBranch.code}` : 'POS & Multi-Sucursal'}
             </span>
           </div>
         </div>
@@ -279,14 +289,40 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
             </NavLink>
           </>
         )}
+
+        {/* Mi Perfil - Todos los roles */}
+        <p className="px-3 pt-4 text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-2">
+          Cuenta
+        </p>
+        <NavLink
+          to="/profile"
+          onClick={onClose}
+          className={({ isActive }) =>
+            `sidebar-item ${isActive ? 'sidebar-item-active' : ''}`
+          }
+        >
+          <User className="w-5 h-5" />
+          <span>Mi Perfil</span>
+        </NavLink>
       </div>
 
       {/* User Footer */}
       <div className="p-3 border-t border-slate-800 bg-slate-950/60">
         <div className="flex items-center justify-between p-2 rounded-xl bg-slate-900/80 border border-slate-800">
-          <div className="flex items-center gap-2.5 min-w-0">
-            <div className="w-9 h-9 rounded-lg bg-sky-600 flex items-center justify-center text-white font-bold text-xs flex-shrink-0">
-              {profile?.full_name ? getInitials(profile.full_name) : 'U'}
+          <div
+            onClick={() => {
+              navigate('/profile')
+              onClose()
+            }}
+            className="flex items-center gap-2.5 min-w-0 cursor-pointer hover:opacity-80 transition-opacity"
+            title="Ver mi perfil"
+          >
+            <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-sky-500 to-emerald-500 flex items-center justify-center text-white font-bold text-xs flex-shrink-0 overflow-hidden">
+              {profile?.avatar_url ? (
+                <img src={profile.avatar_url} alt="Avatar" className="w-full h-full object-cover" />
+              ) : (
+                profile?.full_name ? getInitials(profile.full_name) : 'U'
+              )}
             </div>
             <div className="min-w-0">
               <p className="text-xs font-semibold text-white truncate">

@@ -11,11 +11,18 @@ import {
   BarChart3
 } from 'lucide-react'
 
-export default function MobileNav() {
+interface MobileNavProps {
+  sidebarOpen?: boolean
+}
+
+export default function MobileNav({ sidebarOpen = false }: MobileNavProps) {
   const { role, isSuperAdmin, isAdmin, isCajero } = useAuth()
 
+  // Ocultar completamente cuando el sidebar/hamburguesa está abierto
+  if (sidebarOpen) return null
+
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-30 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 lg:hidden px-2 py-1.5 shadow-lg">
+    <nav className="fixed bottom-0 left-0 right-0 z-30 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 lg:hidden px-2 py-1.5 shadow-lg safe-area-pb">
       <div className="flex items-center justify-around">
         {/* Dashboard */}
         <NavLink
@@ -67,7 +74,7 @@ export default function MobileNav() {
           </NavLink>
         )}
 
-        {/* Productos */}
+        {/* Productos (Admin) / Inventario (Super Admin) */}
         {isAdmin && (
           <NavLink
             to="/products"

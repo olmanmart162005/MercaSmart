@@ -10,7 +10,7 @@ import { Truck, Plus, Search, Edit2, Trash2, Phone, MapPin, User, Loader2, Build
 import toast from 'react-hot-toast'
 
 export default function SuppliersPage() {
-  const { activeBranchId } = useBranch()
+  const { activeBranchId, selectedBranchId } = useBranch()
   const [suppliers, setSuppliers] = useState<Supplier[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -33,15 +33,18 @@ export default function SuppliersPage() {
 
   useEffect(() => {
     loadSuppliers()
-  }, [])
+  }, [selectedBranchId])
 
   const loadSuppliers = async () => {
     setLoading(true)
     try {
-      const { data, error } = await supabase
-        .from('suppliers')
-        .select('*')
-        .order('name')
+      let query = supabase.from('suppliers').select('*').order('name')
+
+      if (selectedBranchId) {
+        query = query.eq('branch_id', selectedBranchId)
+      }
+
+      const { data, error } = await query
 
       if (error) throw error
       setSuppliers(data || [])
@@ -51,6 +54,7 @@ export default function SuppliersPage() {
       setLoading(false)
     }
   }
+
 
   const openCreate = () => {
     setEditingSupplier(null)

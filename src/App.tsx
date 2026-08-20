@@ -16,6 +16,7 @@ import CashPage from '@/pages/CashPage'
 import UsersPage from '@/pages/UsersPage'
 import ReportsPage from '@/pages/ReportsPage'
 import SettingsPage from '@/pages/SettingsPage'
+import ProfilePage from '@/pages/ProfilePage'
 import ProtectedRoute from '@/routes/ProtectedRoute'
 import LoadingScreen from '@/components/ui/LoadingScreen'
 
@@ -118,6 +119,9 @@ export default function App() {
           >
             <Route index element={<SettingsPage />} />
           </Route>
+
+          {/* Profile - Todos los roles */}
+          <Route path="/profile" element={<ProfilePage />} />
         </Route>
       </Route>
 

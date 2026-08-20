@@ -33,8 +33,8 @@ export default function AppLayout() {
         </main>
       </div>
 
-      {/* Navegación móvil inferior */}
-      {profile && <MobileNav />}
+      {/* Navegación móvil inferior - se oculta cuando el sidebar está abierto */}
+      {profile && <MobileNav sidebarOpen={sidebarOpen} />}
     </div>
   )
 }

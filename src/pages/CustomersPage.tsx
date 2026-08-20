@@ -25,7 +25,7 @@ import {
 import toast from 'react-hot-toast'
 
 export default function CustomersPage() {
-  const { activeBranchId } = useBranch()
+  const { activeBranchId, selectedBranchId } = useBranch()
   const [customers, setCustomers] = useState<Customer[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -53,15 +53,21 @@ export default function CustomersPage() {
 
   useEffect(() => {
     loadCustomers()
-  }, [])
+  }, [selectedBranchId])
 
   const loadCustomers = async () => {
     setLoading(true)
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('customers')
         .select('*')
         .order('id', { ascending: true })
+
+      if (selectedBranchId) {
+        query = query.eq('branch_id', selectedBranchId)
+      }
+
+      const { data, error } = await query
 
       if (error) throw error
       setCustomers(data || [])
@@ -71,6 +77,7 @@ export default function CustomersPage() {
       setLoading(false)
     }
   }
+
 
   const openCreate = () => {
     setEditingCustomer(null)
