@@ -335,9 +335,43 @@ export default function POSPage() {
 
     setCompleting(true)
     try {
-      // 1. Get next invoice number
-      const { data: invData } = await supabase.rpc('get_next_invoice_number')
-      const invoiceNumber = invData || `FACT-${Date.now()}`
+      // 1. Get guaranteed unique invoice number
+      let invoiceNumber = ''
+      try {
+        const { data: latestSales } = await supabase
+          .from('sales')
+          .select('id, invoice_number')
+          .order('id', { ascending: false })
+          .limit(20)
+
+        let maxSeq = 0
+        if (latestSales && latestSales.length > 0) {
+          for (const s of latestSales) {
+            if (s.invoice_number) {
+              const match = s.invoice_number.match(/(\d+)$/)
+              if (match) {
+                const parsed = parseInt(match[1], 10)
+                if (!isNaN(parsed) && parsed > maxSeq) {
+                  maxSeq = parsed
+                }
+              }
+            }
+          }
+        }
+
+        const { count } = await supabase
+          .from('sales')
+          .select('*', { count: 'exact', head: true })
+
+        const nextSeq = Math.max(maxSeq + 1, (count || 0) + 1)
+        const prefix = sarConfig?.rango_inicio
+          ? sarConfig.rango_inicio.slice(0, 11)
+          : '000-001-01-'
+
+        invoiceNumber = `${prefix}${String(nextSeq).padStart(8, '0')}`
+      } catch {
+        invoiceNumber = `000-001-01-${String(Date.now()).slice(-8)}`
+      }
 
       // 2. Prepare items payload for RPC
       const itemsPayload = cart.map((i) => ({
@@ -619,69 +653,91 @@ export default function POSPage() {
             </div>
 
             {/* Cart Items List */}
-            <div className="flex-1 overflow-y-auto py-2 space-y-2 pr-1">
+            <div className="flex-1 overflow-y-auto py-2 space-y-2.5 pr-1 scrollbar-thin">
               {cart.length === 0 ? (
-                <div className="h-full flex flex-col items-center justify-center text-center text-slate-400">
-                  <ShoppingCart className="w-12 h-12 text-slate-300 dark:text-slate-700 mb-2" />
-                  <p className="text-sm font-semibold">El carrito está vacío</p>
-                  <p className="text-xs text-slate-400">
-                    Selecciona o escanea productos para comenzar
+                <div className="h-full flex flex-col items-center justify-center text-center text-slate-400 p-6">
+                  <div className="w-16 h-16 rounded-3xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center mb-3">
+                    <ShoppingCart className="w-8 h-8 text-slate-400" />
+                  </div>
+                  <p className="text-sm font-bold text-slate-700 dark:text-slate-300">El carrito está vacío</p>
+                  <p className="text-xs text-slate-400 mt-1 max-w-[200px]">
+                    Selecciona o busca productos para agregarlos a la orden
                   </p>
                 </div>
               ) : (
                 cart.map((item) => (
                   <div
                     key={item.product.id}
-                    className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800 flex items-center justify-between gap-2"
+                    className="p-3 rounded-2xl bg-slate-50/90 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700/60 shadow-xs space-y-2 hover:border-sky-300 dark:hover:border-sky-700/60 transition-all"
                   >
-                    <div className="min-w-0 flex-1">
-                      <p className="font-bold text-xs text-slate-900 dark:text-white truncate">
-                        {item.product.name}
-                      </p>
-                      <span className="text-[10px] text-slate-400">
-                        {formatCurrency(item.product.sale_price)} c/u · ISV {item.product.tax_rate}%
-                      </span>
-                    </div>
-
-                    {/* Qty +/- Controls */}
-                    <div className="flex items-center gap-1 bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 p-0.5">
+                    {/* Row 1: Name, unit price & remove button */}
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0 flex-1">
+                        <p className="font-bold text-xs sm:text-sm text-slate-900 dark:text-white leading-snug break-words">
+                          {item.product.name}
+                        </p>
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className="text-[11px] font-mono text-slate-500 dark:text-slate-400">
+                            {formatCurrency(item.product.sale_price)} c/u
+                          </span>
+                          <span
+                            className={`text-[9px] font-extrabold px-1.5 py-0.5 rounded-md ${
+                              item.product.tax_rate > 0
+                                ? 'bg-indigo-500/10 text-indigo-500 dark:text-indigo-400 border border-indigo-500/20'
+                                : 'bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-300'
+                            }`}
+                          >
+                            ISV {item.product.tax_rate}%
+                          </span>
+                        </div>
+                      </div>
                       <button
-                        onClick={() => updateQuantity(item.product.id, item.quantity - 1)}
-                        className="p-1 text-slate-500 hover:text-slate-900 dark:hover:text-white"
+                        onClick={() => removeFromCart(item.product.id)}
+                        className="p-1.5 rounded-xl text-slate-400 hover:text-rose-500 hover:bg-rose-500/10 transition-colors flex-shrink-0"
+                        title="Quitar producto"
                       >
-                        <Minus className="w-3 h-3" />
-                      </button>
-                      <input
-                        type="number"
-                        min="1"
-                        max={item.product.stock}
-                        value={item.quantity}
-                        onChange={(e) =>
-                          updateQuantity(item.product.id, parseFloat(e.target.value) || 1)
-                        }
-                        className="w-8 text-center font-bold text-xs bg-transparent border-0 focus:outline-none"
-                      />
-                      <button
-                        onClick={() => updateQuantity(item.product.id, item.quantity + 1)}
-                        className="p-1 text-slate-500 hover:text-slate-900 dark:hover:text-white"
-                      >
-                        <Plus className="w-3 h-3" />
+                        <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
 
-                    {/* Line Total */}
-                    <div className="text-right w-16">
-                      <p className="font-black text-xs text-slate-900 dark:text-white">
-                        {formatCurrency(item.product.sale_price * item.quantity)}
-                      </p>
-                    </div>
+                    {/* Row 2: Quantity stepper and total price */}
+                    <div className="flex items-center justify-between pt-1.5 border-t border-slate-200/60 dark:border-slate-700/50">
+                      <div className="flex items-center bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 p-0.5 shadow-2xs">
+                        <button
+                          onClick={() => updateQuantity(item.product.id, item.quantity - 1)}
+                          className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                          title="Disminuir"
+                        >
+                          <Minus className="w-3.5 h-3.5" />
+                        </button>
+                        <input
+                          type="number"
+                          min="1"
+                          max={item.product.stock}
+                          value={item.quantity}
+                          onChange={(e) =>
+                            updateQuantity(item.product.id, parseFloat(e.target.value) || 1)
+                          }
+                          className="w-9 text-center font-black text-xs bg-transparent border-0 focus:outline-none text-slate-900 dark:text-white"
+                        />
+                        <button
+                          onClick={() => updateQuantity(item.product.id, item.quantity + 1)}
+                          className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                          title="Aumentar"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
 
-                    <button
-                      onClick={() => removeFromCart(item.product.id)}
-                      className="p-1 text-slate-400 hover:text-rose-500"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
+                      <div className="text-right">
+                        <span className="text-[10px] text-slate-400 block -mb-0.5 font-medium">
+                          Total
+                        </span>
+                        <p className="font-black text-sm text-emerald-600 dark:text-emerald-400 font-mono">
+                          {formatCurrency(item.product.sale_price * item.quantity)}
+                        </p>
+                      </div>
+                    </div>
                   </div>
                 ))
               )}

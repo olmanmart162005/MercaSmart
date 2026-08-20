@@ -1,9 +1,10 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Menu, Sun, Moon, Building2, ShieldCheck, User } from 'lucide-react'
 import { useTheme } from '@/context/ThemeContext'
 import { useAuth } from '@/context/AuthContext'
 import { useBranch } from '@/context/BranchContext'
+import { getAvatarUrl, getInitials } from '@/utils'
 
 interface HeaderProps {
   onMenuToggle: () => void
@@ -21,7 +22,9 @@ export default function Header({ onMenuToggle }: HeaderProps) {
     setSelectedBranchId,
   } = useBranch()
 
-  const avatarUrl = (profile as any)?.avatar_url
+  const [imgError, setImgError] = useState(false)
+  const fullAvatarUrl = getAvatarUrl(profile?.avatar_url)
+  const initials = getInitials(profile?.full_name || profile?.username || 'U')
 
   return (
     <header className="sticky top-0 z-20 h-16 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 px-4 md:px-6 flex items-center justify-between shadow-sm">
@@ -60,8 +63,11 @@ export default function Header({ onMenuToggle }: HeaderProps) {
             {selectedBranch?.logo_url && (
               <img
                 src={selectedBranch.logo_url}
-                alt={selectedBranch.name}
+                alt=""
                 className="w-6 h-6 object-contain rounded"
+                onError={(e) => {
+                  e.currentTarget.style.display = 'none'
+                }}
               />
             )}
             <span className="flex h-2 w-2 relative">
@@ -101,13 +107,18 @@ export default function Header({ onMenuToggle }: HeaderProps) {
         {/* Avatar / Perfil */}
         <button
           onClick={() => navigate('/profile')}
-          className="flex items-center justify-center w-9 h-9 rounded-full overflow-hidden bg-gradient-to-br from-sky-500 to-emerald-500 text-white font-bold text-sm hover:ring-2 hover:ring-sky-400 transition-all shadow-sm"
+          className="flex items-center justify-center w-9 h-9 rounded-full overflow-hidden bg-gradient-to-br from-sky-500 to-emerald-500 text-white font-bold text-xs hover:ring-2 hover:ring-sky-400 transition-all shadow-sm flex-shrink-0"
           title="Mi perfil"
         >
-          {avatarUrl ? (
-            <img src={avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
+          {fullAvatarUrl && !imgError ? (
+            <img
+              src={fullAvatarUrl}
+              alt=""
+              className="w-full h-full object-cover"
+              onError={() => setImgError(true)}
+            />
           ) : (
-            <span>{(profile?.full_name || profile?.username || 'U').charAt(0).toUpperCase()}</span>
+            <span>{initials}</span>
           )}
         </button>
       </div>

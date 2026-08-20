@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
 import { useBranch } from '@/context/BranchContext';
+import { getAvatarUrl, getInitials } from '@/utils';
 import toast from 'react-hot-toast';
 import {
   User,
@@ -20,19 +21,13 @@ import {
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
-const SUPABASE_STORAGE_URL =
-  'https://dyfwcubkvgcqufpmtgvh.supabase.co/storage/v1/object/public/avatars';
-
-function getAvatarUrl(path: string) {
-  return `${SUPABASE_STORAGE_URL}/${path}`;
-}
-
 function formatRole(role: string): string {
   const map: Record<string, string> = {
     admin: 'Administrador',
     manager: 'Gerente',
     cashier: 'Cajero',
     supervisor: 'Supervisor',
+    super_admin: 'Super Admin',
   };
   return map[role] ?? role.charAt(0).toUpperCase() + role.slice(1);
 }
@@ -43,23 +38,15 @@ function getRoleBadgeClass(role: string): string {
     manager: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
     cashier: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300',
     supervisor: 'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300',
+    super_admin: 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300',
   };
   return map[role] ?? 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300';
-}
-
-function getInitials(fullName: string): string {
-  return fullName
-    .split(' ')
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((n) => n[0].toUpperCase())
-    .join('');
 }
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export default function ProfilePage() {
-  const { profile, user } = useAuth();
+  const { profile, user, refreshProfile } = useAuth();
   const { selectedBranch } = useBranch();
 
   // ── Profile form state ──
@@ -127,7 +114,9 @@ export default function ProfilePage() {
       if (updateError) throw updateError;
 
       // Add cache-buster so the browser reloads the new image
-      setAvatarUrl(`${getAvatarUrl(storagePath)}?t=${Date.now()}`);
+      const resolved = getAvatarUrl(storagePath);
+      setAvatarUrl(resolved ? `${resolved}?t=${Date.now()}` : null);
+      await refreshProfile();
       toast.success('Foto de perfil actualizada.');
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Error al subir la foto.';
@@ -160,6 +149,7 @@ export default function ProfilePage() {
 
       if (error) throw error;
 
+      await refreshProfile();
       toast.success('Perfil actualizado correctamente.');
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Error al guardar el perfil.';

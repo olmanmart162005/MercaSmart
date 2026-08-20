@@ -1,8 +1,8 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '@/context/AuthContext'
 import { useBranch } from '@/context/BranchContext'
-import { getInitials } from '@/utils'
+import { getInitials, getAvatarUrl } from '@/utils'
 import {
   LayoutDashboard,
   ShoppingCart,
@@ -33,6 +33,9 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
   const { profile, role, isSuperAdmin, isAdmin, isCajero, signOut } = useAuth()
   const { selectedBranch } = useBranch()
   const navigate = useNavigate()
+  const [avatarError, setAvatarError] = useState(false)
+
+  const fullAvatarUrl = getAvatarUrl(profile?.avatar_url)
 
   const handleLogout = async () => {
     await signOut()
@@ -60,36 +63,33 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
       }`}
     >
       {/* Brand Header */}
-      <div className="h-16 flex items-center justify-between px-5 border-b border-slate-800 bg-slate-950/40">
-        <div className="flex items-center gap-3">
-          <img
-            src={selectedBranch?.logo_url || '/logo.png'}
-            alt="MercaSmart"
-            className="w-10 h-10 object-contain rounded-xl shadow-md bg-slate-800/40 p-0.5"
-            onError={(e) => {
-              // Fallback to default logo if branch logo fails
-              const target = e.currentTarget
-              if (target.src !== window.location.origin + '/logo.png') {
-                target.src = '/logo.png'
-              }
-            }}
-          />
-          <div>
-            <span className="font-extrabold text-lg tracking-tight text-white block leading-tight">
-              {selectedBranch?.name ? (
-                <span className="truncate max-w-[140px] block">{selectedBranch.name}</span>
-              ) : (
-                <>Merca<span className="text-sky-400">Smart</span></>
-              )}
+      <div className="h-16 flex items-center justify-between px-4 border-b border-slate-800 bg-slate-950/40">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-10 h-10 rounded-xl bg-slate-800/80 border border-slate-700/60 p-1 flex items-center justify-center flex-shrink-0 shadow-md">
+            <img
+              src={selectedBranch?.logo_url || '/logo.png'}
+              alt=""
+              className="w-full h-full object-contain"
+              onError={(e) => {
+                const target = e.currentTarget
+                if (target.src !== window.location.origin + '/logo.png') {
+                  target.src = '/logo.png'
+                }
+              }}
+            />
+          </div>
+          <div className="min-w-0 flex-1">
+            <span className="font-extrabold text-base tracking-tight text-white block leading-tight truncate">
+              {selectedBranch?.name ? selectedBranch.name : 'MercaSmart'}
             </span>
-            <span className="text-[10px] uppercase font-bold tracking-widest text-slate-400 block">
+            <span className="text-[10px] uppercase font-bold tracking-widest text-sky-400 block truncate">
               {selectedBranch?.code ? `Sucursal ${selectedBranch.code}` : 'POS & Multi-Sucursal'}
             </span>
           </div>
         </div>
         <button
           onClick={onClose}
-          className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 lg:hidden"
+          className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 lg:hidden flex-shrink-0"
         >
           <X className="w-5 h-5" />
         </button>
@@ -318,10 +318,15 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
             title="Ver mi perfil"
           >
             <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-sky-500 to-emerald-500 flex items-center justify-center text-white font-bold text-xs flex-shrink-0 overflow-hidden">
-              {profile?.avatar_url ? (
-                <img src={profile.avatar_url} alt="Avatar" className="w-full h-full object-cover" />
+              {fullAvatarUrl && !avatarError ? (
+                <img
+                  src={fullAvatarUrl}
+                  alt=""
+                  className="w-full h-full object-cover"
+                  onError={() => setAvatarError(true)}
+                />
               ) : (
-                profile?.full_name ? getInitials(profile.full_name) : 'U'
+                <span>{profile?.full_name ? getInitials(profile.full_name) : 'U'}</span>
               )}
             </div>
             <div className="min-w-0">

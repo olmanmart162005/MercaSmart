@@ -183,3 +183,13 @@ export function calculateMargin(costPrice: number, salePrice: number): number {
   if (costPrice === 0) return 0
   return ((salePrice - costPrice) / costPrice) * 100
 }
+
+// Obtener URL pública completa de avatar
+export function getAvatarUrl(urlOrPath: string | null | undefined): string | null {
+  if (!urlOrPath || typeof urlOrPath !== 'string' || urlOrPath.trim() === '') return null
+  if (urlOrPath.startsWith('http://') || urlOrPath.startsWith('https://')) {
+    return urlOrPath
+  }
+  return `https://dyfwcubkvgcqufpmtgvh.supabase.co/storage/v1/object/public/avatars/${urlOrPath.replace(/^\/+/, '')}`
+}
+
