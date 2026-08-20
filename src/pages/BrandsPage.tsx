@@ -86,11 +86,23 @@ export default function BrandsPage() {
         if (error) throw error
         toast.success('Marca actualizada')
       } else {
-        const { error } = await supabase
-          .from('brands')
-          .insert({ name: name.trim(), is_active: isActive })
+        const payload = { name: name.trim(), is_active: isActive }
+        const { error: insertErr } = await supabase.from('brands').insert(payload)
+        if (insertErr) {
+          const { data: maxRow } = await supabase
+            .from('brands')
+            .select('id')
+            .order('id', { ascending: false })
+            .limit(1)
+            .maybeSingle()
 
-        if (error) throw error
+          const nextId = (maxRow?.id ? Number(maxRow.id) : 1) + 1
+          const { error: retryErr } = await supabase.from('brands').insert({
+            ...payload,
+            id: nextId,
+          })
+          if (retryErr) throw retryErr
+        }
         toast.success('Marca creada exitosamente')
       }
 

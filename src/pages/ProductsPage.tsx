@@ -179,8 +179,22 @@ export default function ProductsPage() {
         if (error) throw error
         toast.success('Producto actualizado exitosamente')
       } else {
-        const { error } = await supabase.from('products').insert(payload)
-        if (error) throw error
+        const { error: insertErr } = await supabase.from('products').insert(payload)
+        if (insertErr) {
+          const { data: maxRow } = await supabase
+            .from('products')
+            .select('id')
+            .order('id', { ascending: false })
+            .limit(1)
+            .maybeSingle()
+
+          const nextId = (maxRow?.id ? Number(maxRow.id) : 1) + 1
+          const { error: retryErr } = await supabase.from('products').insert({
+            ...payload,
+            id: nextId,
+          })
+          if (retryErr) throw retryErr
+        }
         toast.success('Producto creado con éxito')
       }
 

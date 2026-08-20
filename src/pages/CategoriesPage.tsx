@@ -95,13 +95,27 @@ export default function CategoriesPage() {
         if (error) throw error
         toast.success('Categoría actualizada exitosamente')
       } else {
-        const { error } = await supabase.from('categories').insert({
+        const payload = {
           name: name.trim(),
           is_active: isActive,
           branch_id: activeBranchId,
-        })
+        }
+        const { error: insertErr } = await supabase.from('categories').insert(payload)
+        if (insertErr) {
+          const { data: maxRow } = await supabase
+            .from('categories')
+            .select('id')
+            .order('id', { ascending: false })
+            .limit(1)
+            .maybeSingle()
 
-        if (error) throw error
+          const nextId = (maxRow?.id ? Number(maxRow.id) : 1) + 1
+          const { error: retryErr } = await supabase.from('categories').insert({
+            ...payload,
+            id: nextId,
+          })
+          if (retryErr) throw retryErr
+        }
         toast.success('Categoría creada exitosamente')
       }
 

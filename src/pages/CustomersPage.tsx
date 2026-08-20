@@ -151,8 +151,23 @@ export default function CustomersPage() {
         if (error) throw error
         toast.success('Cliente actualizado exitosamente')
       } else {
-        const { error } = await supabase.from('customers').insert(payload)
-        if (error) throw error
+        const { error: insertErr } = await supabase.from('customers').insert(payload)
+        if (insertErr) {
+          // If sequence is out of sync in PostgreSQL, calculate next ID manually
+          const { data: maxRow } = await supabase
+            .from('customers')
+            .select('id')
+            .order('id', { ascending: false })
+            .limit(1)
+            .maybeSingle()
+
+          const nextId = (maxRow?.id ? Number(maxRow.id) : 1) + 1
+          const { error: retryErr } = await supabase.from('customers').insert({
+            ...payload,
+            id: nextId,
+          })
+          if (retryErr) throw retryErr
+        }
         toast.success('Cliente registrado exitosamente')
       }
 
