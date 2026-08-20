@@ -58,7 +58,7 @@ BEGIN
   ) VALUES (
     p_invoice_number, p_user_id, p_customer_id, p_cash_session_id, p_branch_id,
     p_subtotal, p_tax_amount, p_discount_amount, p_total,
-    p_payment_method, p_cash_received, p_change_given, customer_name, customer_rtn
+    p_payment_method, p_cash_received, p_change_given, p_customer_name, p_customer_rtn
   ) RETURNING id INTO v_sale_id;
 
   -- 3. Insertar items y rebajar inventario

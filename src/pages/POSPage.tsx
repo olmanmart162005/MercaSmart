@@ -383,7 +383,8 @@ export default function POSPage() {
         discount: i.discount || 0,
       }))
 
-      // 3. Execute atomic transaction in Supabase
+      // 3. Execute sale transaction (RPC with direct table fallback)
+      let saleId: number | string = ''
       const { data: saleResult, error: rpcError } = await supabase.rpc('complete_sale', {
         p_invoice_number: invoiceNumber,
         p_user_id: profile.id,
@@ -402,7 +403,97 @@ export default function POSPage() {
         p_items: itemsPayload,
       })
 
-      if (rpcError) throw rpcError
+      if (rpcError) {
+        console.warn('RPC complete_sale returned error, using direct table fallback:', rpcError)
+        
+        // Direct insert into sales table
+        const { data: insertedSale, error: saleErr } = await supabase
+          .from('sales')
+          .insert({
+            invoice_number: invoiceNumber,
+            user_id: profile.id,
+            customer_id: selectedCustomer?.id || null,
+            cash_session_id: activeSession.id,
+            branch_id: activeBranchId,
+            subtotal: totals.subtotal,
+            tax_amount: totals.totalTax,
+            discount_amount: totals.totalDiscount,
+            total: totals.total,
+            payment_method: paymentMethod,
+            cash_received: paymentMethod === 'Efectivo' ? cashRec : totals.total,
+            change_given: changeGiven,
+            customer_name: selectedCustomer?.name || 'Consumidor Final',
+            customer_rtn: selectedCustomer?.rtn || '',
+          })
+          .select('id')
+          .single()
+
+        if (saleErr) throw saleErr
+        saleId = insertedSale.id
+
+        // Insert sale_items
+        const saleItemsData = cart.map((i) => ({
+          sale_id: saleId,
+          product_id: i.product.id,
+          quantity: i.quantity,
+          price: i.product.sale_price,
+          tax_rate: i.product.tax_rate,
+          subtotal: Math.round((i.product.sale_price * i.quantity - (i.discount || 0)) * 100) / 100,
+          discount: i.discount || 0,
+          branch_id: activeBranchId,
+        }))
+        await supabase.from('sale_items').insert(saleItemsData)
+
+        // Deduct product stock & record inventory transactions
+        for (const item of cart) {
+          await supabase
+            .from('products')
+            .update({
+              stock: Math.max(0, item.product.stock - item.quantity),
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', item.product.id)
+
+          await supabase.from('inventory_transactions').insert({
+            product_id: item.product.id,
+            quantity: item.quantity,
+            type: 'Venta',
+            remarks: `Factura #${invoiceNumber}`,
+            user_id: profile.id,
+            reference_id: typeof saleId === 'number' ? saleId : null,
+            branch_id: activeBranchId,
+          })
+        }
+
+        // Update cash session totals
+        if (activeSession.id) {
+          const isCash = paymentMethod === 'Efectivo'
+          const isCard = paymentMethod === 'Tarjeta'
+          const isTransfer = paymentMethod === 'Transferencia'
+
+          await supabase
+            .from('cash_sessions')
+            .update({
+              total_sales: (activeSession.total_sales || 0) + totals.total,
+              total_cash: (activeSession.total_cash || 0) + (isCash ? totals.total : 0),
+              total_card: (activeSession.total_card || 0) + (isCard ? totals.total : 0),
+              total_transfer: (activeSession.total_transfer || 0) + (isTransfer ? totals.total : 0),
+              sales_count: (activeSession.sales_count || 0) + 1,
+            })
+            .eq('id', activeSession.id)
+        }
+
+        // Update customer debt if credit
+        if (paymentMethod === 'Crédito' && selectedCustomer?.id && selectedCustomer.id !== 1) {
+          await supabase
+            .from('customers')
+            .update({
+              debt: (selectedCustomer.debt || 0) + totals.total,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', selectedCustomer.id)
+        }
+      }
 
       // Set Fiscal Invoice Success Modal
       setSuccessSale({
